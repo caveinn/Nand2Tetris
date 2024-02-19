@@ -39,5 +39,10 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+    DMux(in=true,sel=instruction[15], a=Ainstruct, b=Cinstruction);
+    ARegister(in=instruction, load=Ainstruct, out=out1); //Address A
+    //DRegister(in=in, load=true, out=out2); //Address D 
+    PC(reset=reset ,out[1..15]=pc);
+    //ALU()
+    //what to compute  intruction[6..12] dest instruction[3..5], j [0..2]
 }
