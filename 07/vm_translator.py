@@ -7,7 +7,11 @@ from typing import Dict
 heap_pointer: int = 2048
 
 
-def translate_vm_line_to_assembly(line: str, line_no: int) -> str:
+def code_to_push_to_stack(value:str) -> str:
+    #TODO add push code here
+    pass
+
+def translate_vm_line_to_assembly(line: str, line_no: int, file_name: str) -> str:
     # assembly_code = f"//{line}\n"
     assembly_code: str = ""
     # handle memory access
@@ -34,16 +38,41 @@ def translate_vm_line_to_assembly(line: str, line_no: int) -> str:
                 "that": "THAT",
             }
             
-            if line.startswith("push"):
-                assembly_code = f"@{mem_location[segment]}\nD=M\n"
-                assembly_code = f"@{index}\nD=D+A\nA=D\nD=M"
-                assembly_code = f"@SP\nA=M\nM=D\n"
-                assembly_code = f"@SP\nM=M+1\n"
+            if command == "push":
+                assembly_code += f"@{index}\nD=A\n"
+                assembly_code += f"@{mem_location[segment]}\nA=M+D\nD=M\n"
+                assembly_code += f"@SP\nA=M\nM=D\n"
+                assembly_code += f"@SP\nM=M+1\n"
+            else:
+                assembly_code += f"@{index}\nD=A\n"
+                assembly_code += f"@R13\nM=D\n"
+                assembly_code += f"@{mem_location[segment]}\nD=M\n"
+                assembly_code += f"@R13\nM=M+D\n"
+                assembly_code += f"@SP\nA=M-1\nD=M\n"
+                assembly_code += f"@R13\nA=M\nM=D\n"
+                assembly_code += f"@SP\nM=M-1\n"
+        elif segment in ("pointer", "temp"):
+            seg_command: str = ""
+            if segment == "pointer":
+                seg_command = "THIS" if index == "0" else "THAT"
+            else:
+                seg_command = f"R{5+int(index)}"
+            if command == "push":
+                assembly_code += f"@{seg_command}\nD=M\n"
+                assembly_code += f"@SP\nA=M\nM=D\n"
+                assembly_code += f"@SP\nM=M+1\n"
             else:
                 assembly_code += f"@SP\nA=M-1\nD=M\n"
-                assembly_code = f"@{mem_location[segment]}\nD=M\n"
-                assembly_code = f"@{index}\nD=D+A\nA=D\nD=M"
-                assembly_code += f"@{mem_location[segment]}\nM=D\n"
+                assembly_code += f"@{seg_command}\nM=D\n"
+                assembly_code += f"@SP\nM=M-1\n"
+        elif segment == "static":
+            if command == "push":
+                assembly_code += f"@{file_name}.{index}\nD=M\n"
+                assembly_code += f"@SP\nA=M\nM=D\n"
+                assembly_code += f"@SP\nM=M+1\n"
+            else:
+                assembly_code += f"@SP\nA=M-1\nD=M\n"
+                assembly_code += f"@{file_name}.{index}\nM=D\n"
                 assembly_code += f"@SP\nM=M-1\n"
 
     elif line in ("add", "sub", "and", "or", "lt", "eq", "gt"):
@@ -59,36 +88,29 @@ def translate_vm_line_to_assembly(line: str, line_no: int) -> str:
         # pop x
         assembly_code += f"@SP\nA=M-1\n"
         assembly_code += f"D=M\n"
-        assembly_code += f"@R5\nM=D\n"
         assembly_code += f"@SP\nM=M-1\n"
         # pop y
         assembly_code += f"@SP\nA=M-1\n"
-        assembly_code += f"D=M\n"
-        assembly_code += f"@SP\nM=M-1\n"
+      
 
         # add/subtract
         if line in ("add", "sub", "and", "or"):
-            assembly_code += f"@R5\n"
-            assembly_code += f"D=D{operator[line]}M\n"
+            assembly_code += f"D=M{operator[line]}D\n"
             # push solution
-            assembly_code += f"@SP\nA=M\nM=D\n"
-            assembly_code += f"@SP\nM=M+1\n"
+            assembly_code += f"@SP\nA=M-1\nM=D\n"
         # handle comparisons
         else:
             line_label = line + str(line_no)
-            assembly_code += f"@R5\n"
-            assembly_code += f"D=D-M\n"
+            assembly_code += f"D=M-D\n"
             assembly_code += f"@{line_label}.true\n"
             assembly_code += f"D;{operator[line]}\n"
             # push solution
-            assembly_code += f"@SP\nA=M\nM=0\n"
-            assembly_code += f"@SP\nM=M+1\n"
+            assembly_code += f"@SP\nA=M-1\nM=0\n"
             assembly_code += f"@{line_label}.false\n"
             assembly_code += f"0;JMP\n"
             # jump if true
             assembly_code += f"({line_label}.true)\n"
-            assembly_code += f"@SP\nA=M\nM=-1\n"
-            assembly_code += f"@SP\nM=M+1\n"
+            assembly_code += f"@SP\nA=M-1\nM=-1\n"
             assembly_code += f"({line_label}.false)\n"
 
     elif line in ("neg", "not"):
@@ -104,7 +126,7 @@ def translate_vm_line_to_assembly(line: str, line_no: int) -> str:
     return assembly_code
 
 
-def translate_vm_file_to_assembly(vm_file: str) -> str:
+def translate_vm_file_to_assembly(vm_file: str, base_name:str) -> str:
     """
     params:
         vm_file -> file to be translated
@@ -116,7 +138,7 @@ def translate_vm_file_to_assembly(vm_file: str) -> str:
         vm_code = vm.readlines()
         for line_no, line in enumerate(vm_code):
             asm_code += translate_vm_line_to_assembly(
-                line=line.strip(), line_no=line_no
+                line=line.strip(), line_no=line_no, file_name=base_name
             )
     return asm_code
 
@@ -140,9 +162,9 @@ if __name__ == "__main__":
                 break
 
     elif source.endswith(".vm"):
-        asm_code = translate_vm_file_to_assembly(source)
         out_name = source_path.stem
         parent = source_path.parent
+        asm_code = translate_vm_file_to_assembly(source, out_name)
         out_name = os.path.join(parent, out_name)
         with open(f"{out_name}.asm", "w") as out_f:
             out_f.write(asm_code)
