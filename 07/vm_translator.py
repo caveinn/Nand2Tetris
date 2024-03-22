@@ -143,6 +143,15 @@ def translate_vm_file_to_assembly(vm_file: str, base_name:str) -> str:
     return asm_code
 
 
+def translate_file(source_path, source) -> None:
+    out_name = source_path.stem
+    parent = source_path.parent
+    asm_code = translate_vm_file_to_assembly(source, out_name)
+    out_name = os.path.join(parent, out_name)
+    with open(f"{out_name}.asm", "w") as out_f:
+        out_f.write(asm_code)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="Jack VM",
@@ -158,16 +167,10 @@ if __name__ == "__main__":
     if source_path.is_dir():
         for f in os.listdir(source):
             if f.endswith(".vm"):
-                # TODO: Handle all files that are vms.
-                break
+                translate_file(source_path, source)
 
     elif source.endswith(".vm"):
-        out_name = source_path.stem
-        parent = source_path.parent
-        asm_code = translate_vm_file_to_assembly(source, out_name)
-        out_name = os.path.join(parent, out_name)
-        with open(f"{out_name}.asm", "w") as out_f:
-            out_f.write(asm_code)
+        translate_file(source_path, source)
 
     else:
         print(
